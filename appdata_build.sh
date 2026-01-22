@@ -1,36 +1,35 @@
 #!/bin/bash
-# NyarchAssistant AppImage Builder
+# Newelle AppImage Builder
 # Bundles GNOME runtime in case user isn't on gnome
-# Usage: ./build-nyarchassistant-appimage.sh
+# Usage: ./build-newelle-appimage.sh
 
 set -e
 
-echo "🚀 NyarchAssistant AppImage Build Started"
+echo "Building Newelle AppImage"
 echo "========================================="
 
 # Configuration
-BUILDDIR="/tmp/nyarch-build"
-APPDIR="/tmp/NyarchAssistant.AppDir"
-OUTPUT="/tmp/NyarchAssistant-1.2.0-x86_64.AppImage"
-REPO_URL="https://github.com/borrougagnou/NyarchAssistant2Container.git"
+BUILDDIR="/tmp/Newelle-build"
+APPDIR="/tmp/Newelle.AppDir"
+OUTPUT="/tmp/Newelle-1.2.0-x86_64.AppImage"
+REPO_URL="https://github.com/borrougagnou/Newelle2Container.git"
 #BRANCH="master"
 #TODO DEBUG
 BRANCH="appimage"
 #TODO DEBUG
 
 # Cleanup
-rm -rf "$BUILDDIR" "$APPDIR" "$OUTPUT" "$APPDIR"
+rm -rf "$BUILDDIR" "$APPDIR" "$OUTPUT" build _build
 #TODO DEBUG
 rm -rf $APPDIR-tmp
 #TODO DEBUG
-mkdir -p "$BUILDDIR" "$APPDIR"
 
 #######################################
 # STEP 1: Install Build Dependencies  #
 #######################################
 
 echo ""
-echo "📦 Step 1/10: Installing build dependencies..."
+echo "### Step 1/10: Installing build dependencies..."
 
 sudo apt-get update
 
@@ -70,11 +69,12 @@ sudo rm -rf /var/lib/apt/lists/*
 ########################
 
 echo ""
-echo "🏗️  Step 2/10: Building application with Meson..."
+echo "### Step 2/10: Building application with Meson..."
 
+mkdir -p "$BUILDDIR"
 cd "$BUILDDIR"
 git clone --depth 1 -b "$BRANCH" "$REPO_URL"
-cd NyarchAssistant2Container
+cd Newelle2Container
 
 # Build locales
 chmod +x build_locale.sh
@@ -82,15 +82,10 @@ chmod +x build_locale.sh
 
 # Configure and build
 rm -rf _build
-#meson setup _build --prefix=/usr --buildtype=release
-meson setup _build --prefix=/usr --buildtype=release --reconfigure
-#meson compile -C _build
-
-
+meson setup _build --prefix=/usr --buildtype=release
+meson compile -C _build
 # Install to AppDir
 DESTDIR="$APPDIR" meson install -C _build
-
-echo "✅ Application built successfully"
 
 
 
@@ -99,15 +94,17 @@ echo "✅ Application built successfully"
 ################################
 
 echo ""
-echo "🐍 Step 3/10: Setting up Python environment..."
+echo "### Step 3/10: Install Python dependencies..."
 
-python3 -m venv --system-site-packages "$APPDIR/usr/venv"
-source "$APPDIR/usr/venv/bin/activate"
+#echo "Setting up Python environment..."
+#python3 -m venv --system-site-packages "$APPDIR/usr/venv"
+#source "$APPDIR/usr/venv/bin/activate"
 
-echo "Installing Python dependencies..."
-
-pip install --no-cache-dir --upgrade pip setuptools wheel
-pip install --no-cache-dir \
+echo "Installing Python packages..."
+#pip install --no-cache-dir --upgrade pip setuptools wheel
+#pip install --no-cache-dir \
+pip install --no-cache-dir --upgrade pip setuptools wheel --target=$APPDIR/lib/python3.13/site-packages
+pip install --no-cache-dir --target=$APPDIR/lib/python3.13/site-packages \
     cssselect \
     curl_cffi \
     duckduckgo-search \
@@ -147,9 +144,7 @@ pip install --no-cache-dir \
     wordllama==0.3.9
 
 
-deactivate
-
-echo "✅ Python environment ready"
+#deactivate
 
 
 
@@ -158,97 +153,21 @@ echo "✅ Python environment ready"
 ######################################
 
 echo ""
-echo "📥 Step 4/10: Downloading external assets..."
+echo "### Step 4/10: Downloading external assets..."
 
-DATADIR="$APPDIR/usr/share/nyarchassistant/data"
-BUILDDATADIR="$BUILDDIR/NyarchAssistant2Container/data"
-
-# Copy data asset
-if [ -d "$BUILDDATADIR" ]; then
-    #TODO DEBUG
-    echo debug1
-    echo "$BUILDDATADIR:"
-    ls -a $BUILDDATADIR
-    #echo "$DATADIR:"
-    #ls -a $DATADIR
-    #TODO DEBUG
-
-    mkdir -p "$APPDIR/usr/share/nyarchassistant/data"
-    cp -r $BUILDDATADIR/* $DATADIR/.
-    #TODO DEBUG
-    echo debug2
-    echo "$BUILDDATADIR:"
-    ls -a $BUILDDATADIR
-    echo "$DATADIR:"
-    ls -a $DATADIR
-    #TODO DEBUG
-
-else
-    echo "No data directory found in source!"
-    exit 1
-fi
-
-cd /tmp
-mkdir -p "$DATADIR/live2d/web" "$DATADIR/smart-prompts"
-
-# Live2D Viewer
-echo "  - Live2D viewer..."
-wget -q -O live2d.tar.xz \
-    https://github.com/NyarchLinux/live2d-lipsync-viewer/releases/download/0.5/pack.tar.xz
-tar -xJf live2d.tar.xz -C "$DATADIR/live2d/web"
-
-# Arch-chan Avatar
-echo "  - Arch-chan avatar..."
-wget -q -O arch-chan.png https://nyarchlinux.moe/acchan.png
-cp arch-chan.png "$DATADIR/live2d/arch-chan.png"
-cp arch-chan.png "$DATADIR/live2d/web/arch-chan.png"
-
-# Smart Prompts Dataset
-echo "  - Smart Prompts dataset..."
-wget -q -O "$DATADIR/smart-prompts/dataset.csv" \
-    https://github.com/NyarchLinux/Smart-Prompts/releases/download/0.3/dataset.csv
-wget -q -O "$DATADIR/smart-prompts/NyaMedium_0.3_256.pkl" \
-    https://github.com/NyarchLinux/Smart-Prompts/releases/download/0.3/NyaMedium_0.3_256.pkl
-wget -q -O "$DATADIR/smart-prompts/l2_supercat_tokenizer_config.json" \
-    https://huggingface.co/dleemiller/word-llama-l2-supercat/resolve/main/l2_supercat_tokenizer_config.json
-
-# llama.cpp binaries (for local inference)
-echo "  - llama.cpp binaries..."
-wget -q -O llamacpp.tar.gz \
-    https://github.com/ggml-org/llama.cpp/releases/download/b7662/llama-b7662-bin-ubuntu-x64.tar.gz
-tar -xzf llamacpp.tar.gz -C "$APPDIR/usr/bin/" 2>/dev/null || true
-
-echo "✅ Assets downloaded"
+echo "No External Asset"
 
 
-#####################################
-# Step 5: Prepare Desktop File    #
-#####################################
+#######################################
+# Step 5: Copy Icons and Desktop File #
+#######################################
 
-echo "📝 Step 5/10: Preparing desktop file for AppImage..."
-
+echo ""
+echo "### Step 5/10: Preparing desktop file for AppImage..."
 # Copy the installed desktop file to AppDir root
-cp "$APPDIR/usr/share/applications/moe.nyarchlinux.assistant.desktop" \
-   "$APPDIR/moe.nyarchlinux.assistant.desktop"
-
-# Also copy the icon to AppDir root (appimagetool expects this too)
-ICON_PATH="$APPDIR/usr/share/icons/hicolor/scalable/apps/moe.nyarchlinux.assistant.svg"
-if [ -f "$ICON_PATH" ]; then
-    cp "$ICON_PATH" "$APPDIR/moe.nyarchlinux.assistant.svg"
-elif [ -f "$APPDIR/usr/share/icons/hicolor/256x256/apps/moe.nyarchlinux.assistant.png" ]; then
-    cp "$APPDIR/usr/share/icons/hicolor/256x256/apps/moe.nyarchlinux.assistant.png" \
-       "$APPDIR/moe.nyarchlinux.assistant.png"
-fi
-
-# Verify files exist
-if [ ! -f "$APPDIR/moe.nyarchlinux.assistant.desktop" ]; then
-    echo "❌ ERROR: Desktop file not found after copy!"
-    echo "Looking in: $APPDIR/usr/share/applications/"
-    ls -la "$APPDIR/usr/share/applications/" || true
-    exit 1
-fi
-
-echo "✅ Desktop file prepared"
+mkdir -p $APPDIR/usr/share/icons/hicolor/scalable/apps
+cp "$APPDIR/usr/share/icons/hicolor/scalable/apps/io.github.qwersyk.Newelle.svg" "$APPDIR/"
+cp "$APPDIR/usr/share/applications/io.github.qwersyk.Newelle.desktop" "$APPDIR/"
 
 
 
@@ -257,8 +176,8 @@ echo "✅ Desktop file prepared"
 #############################
 
 echo ""
-echo "📦 Step 6/10: Bundling GNOME Platform libraries..."
-echo "  (Required for XFCE4 compatibility)"
+echo "### Step 6/10: Bundling GNOME Platform libraries..."
+echo "  (Required for XFCE/KDE/LXDE/... compatibility)"
 
 cd "$BUILDDIR"
 
@@ -283,12 +202,13 @@ for typelib in Gtk-4.0 Adw-1 GtkSource-5 Vte-3.91 WebKit-6.0 GLib-2.0 GObject-2.
         -exec cp {} "$APPDIR/usr/lib/girepository-1.0/" \; 2>/dev/null || true
 done
 
-# Copy GSettings schemas
+# Copy and Compile GSettings schemas
 echo "  - GSettings schemas..."
 mkdir -p "$APPDIR/usr/share/glib-2.0/schemas"
-cp /usr/share/glib-2.0/schemas/org.gnome*.xml "$APPDIR/usr/share/glib-2.0/schemas/" 2>/dev/null || true
-cp /usr/share/glib-2.0/schemas/org.gtk*.xml "$APPDIR/usr/share/glib-2.0/schemas/" 2>/dev/null || true
-cp "$APPDIR/usr/share/glib-2.0/schemas/"*.xml "$APPDIR/usr/share/glib-2.0/schemas/" 2>/dev/null || true
+#cp /usr/share/glib-2.0/schemas/org.gnome*.xml "$APPDIR/usr/share/glib-2.0/schemas/" 2>/dev/null || true
+#cp /usr/share/glib-2.0/schemas/org.gtk*.xml "$APPDIR/usr/share/glib-2.0/schemas/" 2>/dev/null || true
+
+#cp "$APPDIR/usr/share/glib-2.0/schemas/"*.xml "$APPDIR/usr/share/glib-2.0/schemas/" 2>/dev/null || true
 glib-compile-schemas "$APPDIR/usr/share/glib-2.0/schemas/"
 
 # Copy Adwaita icons (essential for GTK4 apps)
@@ -298,34 +218,29 @@ if [ -d "/usr/share/icons/Adwaita" ]; then
     cp -r /usr/share/icons/Adwaita "$APPDIR/usr/share/icons/"
 fi
 
-echo "✅ GNOME runtime bundled"
+
 
 ##########################
 # STEP 7: Patches        #
 ##########################
 
-#echo ""
-#echo "🔧 Step 7/10: Applying patches..."
-#
-## Patch flatpak-spawn check (critical - app crashes without this)
-#echo "  - Patching Flatpak detection..."
-#SYSTEM_PY="$APPDIR/usr/share/nyarchassistant/nyarchassistant/utility/system.py"
-#if [ -f "$SYSTEM_PY" ]; then
-#    sed -i '/subprocess.check_output(\["flatpak-spawn"/a\    except FileNotFoundError:\n        return False' "$SYSTEM_PY"
-#fi
-#
-#echo "✅ Patches applied"
+echo ""
+echo "### Step 7/10: Applying patches..."
+
+echo "No Patch"
+
+
 
 ##########################
 # STEP 8: Create AppRun  #
 ##########################
 
 echo ""
-echo "📝 Step 8/10: Creating AppRun script..."
+echo "### Step 8/10: Creating AppRun script..."
 
 cat > "$APPDIR/AppRun" << 'APPRUN_EOF'
 #!/bin/bash
-# AppRun script for NyarchAssistant
+# AppRun script for Newelle
 # Provides isolated environment with GNOME runtime
 
 set -e
@@ -333,38 +248,31 @@ set -e
 SELF=$(readlink -f "$0")
 HERE=${SELF%/*}
 
-echo "Starting NyarchAssistant AppImage" >&2
-echo "   AppDir from AppRun: $HERE" >&2
+echo "Starting Newelle AppImage" >&2
+echo "   APPDIR: $HERE" >&2
 
 # APPDIR for application path detection
 export APPDIR="$HERE"
-echo "APPDIR FROM AppRun= $APPDIR" >&2
 
 # Python environment
-# DO NOT set PYTHONHOME when using venv - it breaks stdlib location!
-# Instead, add venv's Python binary directly to PATH so it takes priority
-export PATH="$HERE/usr/venv/bin:$HERE/usr/bin:$PATH"
-
-# Add venv's site-packages to PYTHONPATH for imports
-export PYTHONPATH="$HERE/usr/venv/lib/python3.13/site-packages:$HERE/usr/lib/python3.13/site-packages:$HERE/usr/share/nyarchassistant:${PYTHONPATH}"
-
-export VIRTUAL_ENV="$HERE/usr/venv"
-export PYTHONUSERBASE="$HERE/usr/venv"
-unset PYTHONHOME
+export PYTHONPATH="$HERE/usr/share/newelle:$HERE/usr/lib/python3.13/site-packages:${PYTHONPATH}"
+export PYTHONUSERBASE="$HOME/.config/Newelle/pip"  # Runtime pip goes here
 
 # GTK/GNOME runtime
 export GDK_BACKEND=wayland,x11  # Wayland preferred, X11 fallback
-export XDG_DATA_DIRS="$HERE/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
 export GI_TYPELIB_PATH="$HERE/usr/lib/girepository-1.0:${GI_TYPELIB_PATH}"
-export LD_LIBRARY_PATH="$HERE/usr/lib:${LD_LIBRARY_PATH}"
+export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
 export GDK_PIXBUF_MODULEDIR="$HERE/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders"
 export GDK_PIXBUF_MODULE_FILE="$HERE/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache"
 
-# GSettings
-export GSETTINGS_SCHEMA_DIR="$HERE/usr/share/glib-2.0/schemas"
+# User data directories (stays in home)
+export XDG_DATA_DIRS="$HERE/usr/share:${XDG_DATA_DIRS:-/usr/local/share:/usr/share}"
+export XDG_CONFIG_HOME="${XDG_CONFIG_HOME:-$HOME/.config}"
+export XDG_DATA_HOME="${XDG_DATA_HOME:-$HOME/.local/share}"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-$HOME/.cache}"
 
-# Application data
-export NYARCH_DATA_DIR="$HERE/usr/share/nyarchassistant/data"
+# GSettings
+export GSETTINGS_SCHEMA_DIR="$HERE/usr/share/glib-2.0/schemas:${GSETTINGS_SCHEMA_DIR}"
 
 # Audio
 export SDL_AUDIODRIVER=pulseaudio
@@ -375,26 +283,22 @@ export FLATPAK_DISABLE=1
 # Vulkan (for llama-cpp-python GPU acceleration)
 export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/nvidia_icd.json:/usr/share/vulkan/icd.d/radeon_icd.json
 
-echo "   APPDIR=$APPDIR" >&2
-
 # Verify critical files
-if [ ! -f "$HERE/usr/bin/nyarchassistant" ]; then
-    echo "❌ ERROR: Binary nyarchassistant not found!" >&2
+if [ ! -f "$HERE/usr/bin/newelle" ]; then
+    echo "ERROR: newelle: $HERE/usr/bin/newelle: file not found!" >&2
     exit 1
 fi
 
-if [ ! -f "$HERE/usr/share/nyarchassistant/nyarchassistant.gresource" ]; then
-    echo "❌ ERROR: GResource not found!" >&2
+if [ ! -f "$HERE/usr/share/newelle/newelle.gresource" ]; then
+    echo "ERROR: GResource: $HERE/usr/share/newelle/newelle.gresource: file not found!" >&2
     exit 1
 fi
 
 # Execute application
-exec "$HERE/usr/venv/bin/python3" "$HERE/usr/bin/nyarchassistant" "$@"
+exec "$HERE/usr/venv/bin/python3" "$HERE/usr/bin/newelle" "$@"
 APPRUN_EOF
 
 chmod +x "$APPDIR/AppRun"
-
-echo "✅ AppRun created"
 
 
 
@@ -403,7 +307,7 @@ echo "✅ AppRun created"
 ############################
 
 echo ""
-echo "⚡ Step 9/10: Optimizing AppImage size..."
+echo "### Step 9/10: Optimizing AppImage size..."
 
 # Strip debug symbols
 echo "  - Stripping debug symbols..."
@@ -420,8 +324,6 @@ echo "  - Removing docs and tests..."
 rm -rf "$APPDIR/usr/share/doc" "$APPDIR/usr/share/man" 2>/dev/null || true
 find "$APPDIR/usr/lib" -type d -name test -exec rm -rf {} + 2>/dev/null || true
 
-echo "✅ Optimization complete"
-
 
 
 ###############################
@@ -429,7 +331,7 @@ echo "✅ Optimization complete"
 ###############################
 
 echo ""
-echo "📦 Step 10/10: Creating final AppImage..."
+echo "### Step 10/10: Creating final AppImage..."
 
 cd /tmp
 
@@ -461,9 +363,11 @@ ARCH=x86_64 ./appimagetool/AppRun --runtime-file /tmp/runtime-x86_64 "$APPDIR" "
 
 chmod +x "$OUTPUT"
 
+
+
 echo ""
 echo "========================================="
-echo "✅ BUILD COMPLETE!"
+echo "BUILD COMPLETE!"
 echo "========================================="
 echo ""
 echo "AppImage location: $OUTPUT"
