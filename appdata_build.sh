@@ -19,7 +19,7 @@ BRANCH="appimage"
 #TODO DEBUG
 
 # Cleanup
-rm -rf "$BUILDDIR" "$APPDIR" "$OUTPUT" build _build
+rm -rf "$BUILDDIR" "$APPDIR" "$OUTPUT" build _build /tmp/squashfs-root/
 #TODO DEBUG
 rm -rf $APPDIR-tmp
 #TODO DEBUG
@@ -96,15 +96,29 @@ DESTDIR="$APPDIR" meson install -C _build
 echo ""
 echo "### Step 3/10: Install Python dependencies..."
 
-#echo "Setting up Python environment..."
-#python3 -m venv --system-site-packages "$APPDIR/usr/venv"
-#source "$APPDIR/usr/venv/bin/activate"
+
+echo "Setting up Python environment..."
+cd /tmp
+if [ ! -f "/tmp/python3.13.AppImage" ]; then
+    # Quick and reliable way to get relocatable Python
+    wget https://github.com/niess/python-appimage/releases/download/python3.13/python3.13.9-cp313-cp313-manylinux2014_x86_64.AppImage \
+        -O /tmp/python3.13.AppImage
+    chmod +x python3.13.AppImage
+fi
+./python3.13.AppImage --appimage-extract
+
+# Copy extracted Python into the APPDIR
+cp -r /tmp/squashfs-root/usr/* $APPDIR/usr/
+
+PYTHON_BIN="/tmp/squashfs-root/opt/python3.13/bin/python3.13"
+PIP_BIN="/tmp/squashfs-root/opt/python3.13/bin/pip3.13"
+
 
 echo "Installing Python packages..."
 #pip install --no-cache-dir --upgrade pip setuptools wheel
 #pip install --no-cache-dir \
-pip install --no-cache-dir --upgrade pip setuptools wheel --target=$APPDIR/lib/python3.13/site-packages
-pip install --no-cache-dir --target=$APPDIR/lib/python3.13/site-packages \
+$PYTHON_BIN install --no-cache-dir --upgrade pip setuptools wheel --target=$APPDIR/lib/python3.13/site-packages
+$PIP_BIN install --no-cache-dir --target=$APPDIR/lib/python3.13/site-packages \
     cssselect \
     curl_cffi \
     duckduckgo-search \
@@ -295,7 +309,7 @@ if [ ! -f "$HERE/usr/share/newelle/newelle.gresource" ]; then
 fi
 
 # Execute application
-exec "$HERE/usr/venv/bin/python3" "$HERE/usr/bin/newelle" "$@"
+exec "$HERE/usr/bin/python3" "$HERE/usr/bin/newelle" "$@"
 APPRUN_EOF
 
 chmod +x "$APPDIR/AppRun"
