@@ -105,7 +105,7 @@ if [ ! -f "/tmp/python3.13.AppImage" ]; then
         -O /tmp/python3.13.AppImage
     chmod +x python3.13.AppImage
 fi
-./python3.13.AppImage --appimage-extract
+/tmp/python3.13.AppImage --appimage-extract
 
 # Copy extracted Python into the APPDIR
 cp -r /tmp/squashfs-root/usr/* $APPDIR/usr/
@@ -117,7 +117,7 @@ PIP_BIN="/tmp/squashfs-root/opt/python3.13/bin/pip3.13"
 echo "Installing Python packages..."
 #pip install --no-cache-dir --upgrade pip setuptools wheel
 #pip install --no-cache-dir \
-$PYTHON_BIN install --no-cache-dir --upgrade pip setuptools wheel --target=$APPDIR/lib/python3.13/site-packages
+$PIP_BIN install --no-cache-dir --upgrade pip setuptools wheel --target=$APPDIR/lib/python3.13/site-packages
 $PIP_BIN install --no-cache-dir --target=$APPDIR/lib/python3.13/site-packages \
     cssselect \
     curl_cffi \
