@@ -76,16 +76,16 @@ cd "$BUILDDIR"
 git clone --depth 1 -b "$BRANCH" "$REPO_URL"
 cd Newelle2Container
 
-# Build locales
-chmod +x build_locale.sh
-./build_locale.sh || true
-
 # Configure and build
 rm -rf _build
 meson setup _build --prefix=/usr --buildtype=release
 meson compile -C _build
 # Install to AppDir
 DESTDIR="$APPDIR" meson install -C _build
+
+# Build translations
+chmod +x build_locale.sh
+./build_locale.sh || true
 
 
 
@@ -108,10 +108,16 @@ fi
 /tmp/python3.13.AppImage --appimage-extract
 
 # Copy extracted Python into the APPDIR
+mkdir -p $APPDIR/usr $APPDIR/opt
 cp -r /tmp/squashfs-root/usr/* $APPDIR/usr/
+cp -r /tmp/squashfs-root/opt/python3.13/* "$APPDIR/usr/"
+#cp -r /tmp/squashfs-root/opt/* $APPDIR/opt/
 
-PYTHON_BIN="/tmp/squashfs-root/opt/python3.13/bin/python3.13"
-PIP_BIN="/tmp/squashfs-root/opt/python3.13/bin/pip3.13"
+#PYTHON_BIN="/tmp/squashfs-root/opt/python3.13/bin/python3.13"
+#PIP_BIN="/tmp/squashfs-root/opt/python3.13/bin/pip3.13"
+
+PYTHON_BIN="$APPDIR/usr/bin/python3.13"
+PIP_BIN="$APPDIR/usr/bin/pip3.13"
 
 
 echo "Installing Python packages..."
