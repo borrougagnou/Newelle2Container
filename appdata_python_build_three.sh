@@ -54,22 +54,93 @@ for typelib in Gtk-4.0 Adw-1 GtkSource-5 Vte-3.91 WebKit-6.0 GLib-2.0 GObject-2.
     find /usr/lib/x86_64-linux-gnu/girepository-1.0 -name "${typelib}.typelib" \
         -exec cp {} "$APPDIR/usr/lib/girepository-1.0/" \; 2>/dev/null || true
 done
-find /usr/lib -name "libffi.so*"   -type f -exec cp {} $APPDIR/usr/lib/ \;
-find /usr/lib -name "libexpat.so*" -type f -exec cp {} $APPDIR/usr/lib/ \;
-find /usr/lib -name "libz.so*"     -type f -exec cp {} $APPDIR/usr/lib/ \;
-find /usr/lib -name "libuuid.so*"  -type f -exec cp {} $APPDIR/usr/lib/ \;
 
-find /usr/lib -name "libgirepository-1.0.so*" -type f -exec cp {} $APPDIR/usr/lib/ \;
-find /usr/lib -name "libgirepository-2.0.so*" -type f -exec cp {} $APPDIR/usr/lib/ \;
-find /usr/lib -name "libportaudio.so.2*"      -type f -exec cp {} $APPDIR/usr/lib/ \;
+
+copy_lib() {
+    NAME=$1
+    DEST=$2
+    # Find the library and copy it + deference symlink
+    FILE_PATH=$(find /usr/lib -name "$NAME*" -type f | head -n 1)
+    if [ -n "$FILE_PATH" ]; then
+        echo "   -> Copy $NAME into $DEST"
+        cp -v "$FILE_PATH" "$DEST/"
+    else
+        echo "   -> WARNING: Not Found: $NAME"
+    fi
+}
+
+copy_lib "libffi.so"   "$APPDIR/usr/lib/"
+copy_lib "libexpat.so" "$APPDIR/usr/lib/"
+copy_lib "libz.so"     "$APPDIR/usr/lib/"
+copy_lib "libuuid.so"  "$APPDIR/usr/lib/"
+
+copy_lib "libselinux.so.1" "$APPDIR/usr/lib/"
+copy_lib "libmount.so.1"   "$APPDIR/usr/lib/"
+copy_lib "libblkid.so.1"   "$APPDIR/usr/lib/"
+copy_lib "libpcre2-8.so.0" "$APPDIR/usr/lib/"
+
+copy_lib "libgirepository-1.0.so" "$APPDIR/usr/lib/"
+copy_lib "libgirepository-2.0.so" "$APPDIR/usr/lib/"
+copy_lib "libportaudio.so.2"      "$APPDIR/usr/lib/"
+copy_lib "libffi.so.8"            "$APPDIR/usr/lib/"
+copy_lib "libssl.so.3"            "$APPDIR/usr/lib/"
+copy_lib "libcrypto.so.3"         "$APPDIR/usr/lib/"
+
+copy_lib "libgio-2.0.so.0"     "$APPDIR/usr/lib/"
+copy_lib "libglib-2.0.so.0"    "$APPDIR/usr/lib/"
+copy_lib "libgobject-2.0.so.0" "$APPDIR/usr/lib/"
+copy_lib "libgmodule-2.0.so.0" "$APPDIR/usr/lib/"
+
+#find /usr/lib -name "libportaudio.so.2*"      -type f -exec cp {} $APPDIR/usr/lib/ \;
+
+
 
 # C. Handle Typelibs (Required for GTK)
 echo "--> Bundling Typelibs..."
-mkdir -p AppDir/usr/lib/girepository-1.0
+mkdir -p $APPDIR/usr/lib/girepository-1.0
 # Try standard paths
-cp -r /usr/lib/x86_64-linux-gnu/girepository-1.0/* AppDir/usr/lib/girepository-1.0/ 2>/dev/null || true
-cp -r /usr/lib/girepository-1.0/* AppDir/usr/lib/girepository-1.0/ 2>/dev/null || true
+cp -r /usr/lib/x86_64-linux-gnu/girepository-1.0/* $APPDIR/usr/lib/girepository-1.0/ 2>/dev/null || true
+cp -r /usr/lib/girepository-1.0/* $APPDIR/usr/lib/girepository-1.0/ 2>/dev/null || true
 
+
+#TODO PIXBUF
+
+QUERY_TOOL=$(find /usr/lib -name "gdk-pixbuf-query-loaders*" -type f -executable | head -n 1)
+if [ -z "$QUERY_TOOL" ]; then
+    echo "ERROR: Could not find 'gdk-pixbuf-query-loaders'"
+    echo "Please try: sudo apt install libgdk-pixbuf2.0-bin"
+    exit 1
+fi
+
+echo "Using query tool: $QUERY_TOOL"
+
+# 2. Find and Create Directory
+# We dynamically find where the loaders live on your host
+HOST_LOADER=$(find /usr/lib -type f -name "libpixbufloader_svg.so*" | head -n 1)
+HOST_LOADER_DIR=${HOST_LOADER%/*}
+DEST_LOADER_DIR="$APPDIR/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders"
+
+echo "HOST_LOADER_DIR: [$HOST_LOADER_DIR]"
+echo "DEST_LOADER_DIR: [$DEST_LOADER_DIR]"
+
+mkdir -p "$DEST_LOADER_DIR"
+
+# 3. Copy the loader files
+echo "Copying loaders from $HOST_LOADER_DIR..."
+cp "$HOST_LOADER_DIR"/*.so "$DEST_LOADER_DIR/"
+
+# 4. GENERATE CACHE FILE
+echo "Generating loaders.cache..."
+# Run the tool we found to generate the raw cache
+$QUERY_TOOL "$DEST_LOADER_DIR"/*.so > $APPDIR/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
+
+# 5. SANITIZE PATHS
+# The cache now contains absolute paths like "/home/user/.../AppDir/...".
+# We must strip everything up to "AppDir" so it becomes relative.
+# This sed command deletes the prefix, leaving just "libpixbufloader-png.so" etc.
+sed -i "s|$(pwd)/$APPDIR/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders/||g" $APPDIR/usr/lib/gdk-pixbuf-2.0/2.10.0/loaders.cache
+
+########
 
 # Copy and Compile GSettings schemas
 echo "  - GSettings schemas..."

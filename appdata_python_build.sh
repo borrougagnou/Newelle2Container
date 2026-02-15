@@ -67,7 +67,8 @@ mkdir -p "$BUILDDIR" "$APPDIR"
 #  ffmpeg
 #
 ## Image processing
-#sudo apt-get install -y --no-install-recommends libjpeg62-turbo-dev libpng-dev zlib1g-dev libfreetype-dev
+#sudo apt-get install -y --no-install-recommends libjpeg62-turbo-dev libpng-dev zlib1g-dev libfreetype-dev \
+#  libgdk-pixbuf-2.0-dev librsvg2-dev
 #
 ## Additional
 #sudo apt-get install -y --no-install-recommends libqhull-dev rustc cargo desktop-file-utils libglib2.0-bin \
