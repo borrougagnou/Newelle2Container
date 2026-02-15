@@ -18,8 +18,7 @@ BRANCH="appimage"
 #TODO DEBUG
 REPO_URL="https://github.com/borrougagnou/Newelle2Container.git"
 #### PYTHON
-PYTHON_VERSION="3.13.10"
-PYTHON_STANDALONE_TAG="20251202"
+PYTHON_VERSION="3.13.12"
 #### BUILD
 BUILDDIR="/tmp/Newelle-build"
 APPDIR="/tmp/Newelle.AppDir"
@@ -55,18 +54,14 @@ for typelib in Gtk-4.0 Adw-1 GtkSource-5 Vte-3.91 WebKit-6.0 GLib-2.0 GObject-2.
     find /usr/lib/x86_64-linux-gnu/girepository-1.0 -name "${typelib}.typelib" \
         -exec cp {} "$APPDIR/usr/lib/girepository-1.0/" \; 2>/dev/null || true
 done
-find /usr/lib -name "libffi.so*"   -type f -exec cp {} $APPDIR/usr/lib/libffi.so.8 \;
-find /usr/lib -name "libexpat.so*" -type f -exec cp {} $APPDIR/usr/lib/libexpat.so.1 \;
-find /usr/lib -name "libz.so*"     -type f -exec cp {} $APPDIR/usr/lib/libz.so.1 \;
-find /usr/lib -name "libuuid.so*"  -type f -exec cp {} $APPDIR/usr/lib/libuuid.so.1 \;
+find /usr/lib -name "libffi.so*"   -type f -exec cp {} $APPDIR/usr/lib/ \;
+find /usr/lib -name "libexpat.so*" -type f -exec cp {} $APPDIR/usr/lib/ \;
+find /usr/lib -name "libz.so*"     -type f -exec cp {} $APPDIR/usr/lib/ \;
+find /usr/lib -name "libuuid.so*"  -type f -exec cp {} $APPDIR/usr/lib/ \;
 
-find $APPDIR/usr/lib/python -name "libexpat.so*" -delete
-find $APPDIR/usr/lib/python -name "libffi.so*" -delete
-find $APPDIR/usr/lib/python -name "libz.so*" -delete
-
-find /usr/lib -name "libgirepository-1.0.so*" -type f -exec cp {} $APPDIR/usr/lib/libgirepository-1.0.so \;
-find /usr/lib -name "libgirepository-2.0.so*" -type f -exec cp {} $APPDIR/usr/lib/libgirepository-2.0.so \;
-find /usr/lib -name "libportaudio.so.2*" -type f -exec cp {} $APPDIR/usr/lib/libportaudio.so.2 \;
+find /usr/lib -name "libgirepository-1.0.so*" -type f -exec cp {} $APPDIR/usr/lib/ \;
+find /usr/lib -name "libgirepository-2.0.so*" -type f -exec cp {} $APPDIR/usr/lib/ \;
+find /usr/lib -name "libportaudio.so.2*"      -type f -exec cp {} $APPDIR/usr/lib/ \;
 
 # C. Handle Typelibs (Required for GTK)
 echo "--> Bundling Typelibs..."
@@ -92,6 +87,10 @@ if [ -d "/usr/share/icons/Adwaita" ]; then
     cp -r /usr/share/icons/Adwaita "$APPDIR/usr/share/icons/"
 fi
 
+## We need that because the app search for AppDir/share not AppDir/usr/share
+#if [ -d "AppDir/usr/share" ]; then
+#    ln -s usr/share AppDir/share
+#fi
 
 ##########################
 # STEP 7: Patches        #
@@ -130,29 +129,19 @@ echo "Starting Newelle AppImage" >&2
 echo "   APPDIR: $HERE" >&2
 
 # APPDIR for application path detection
-export APPDIR="$HERE"
+export APPDIR="$HERE/usr"
 
-export PATH="$HERE/usr/lib/python/bin:$PATH"
+export PATH="$HERE/usr/bin:${PATH}"
 
 # Python environment
-export PYTHONHOME="$HERE/usr/lib/python"
-export PYTHONPATH="$HERE/usr/bin:$PYTHONPATH"
-#export PYTHONPATH="$HERE/usr/lib/python3.13/site-packages:$HERE/usr/share/newelle:${PYTHONPATH}"
-#export PYTHONPATH="$HERE/usr/share/newelle:$HERE/usr/bin:$HERE/usr/lib/python/lib/python3.13/site-packages:${PYTHONPATH}"
+export PYTHONHOME="$HERE/usr"
+export PYTHONPATH="$HERE/usr/lib/python3.13/site-packages:$HERE/usr/share/newelle:${PYTHONPATH}"
 #export PYTHONUSERBASE="$HOME/.config/Newelle/pip"  # Runtime pip goes here
 
 # GTK/GNOME runtime
-export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/lib/python/lib:$LD_LIBRARY_PATH"
+export LD_LIBRARY_PATH="$HERE/usr/lib:$HERE/usr/lib/python3.13/lib:${LD_LIBRARY_PATH}"
 #export LD_LIBRARY_PATH="$HERE/usr/lib:\$HERE/lib/x86_64-linux-gnu:${LD_LIBRARY_PATH}"
 #export LD_LIBRARY_PATH="\$HERE/usr/lib/extras:\$HERE/usr/lib/python/lib\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
-
-EXPAT=$(find "$HERE/usr/lib" -name "libexpat.so.*" | head -n 1)
-FFI=$(find "$HERE/usr/lib" -name "libffi.so.*" | head -n 1)
-
-export LD_PRELOAD="$HERE/usr/lib/libexpat.so.1:$HERE/usr/lib/libffi.so.8:$HERE/usr/lib/libz.so.1"
-
-echo "DEBUG: LD_PRELOAD is set to: $LD_PRELOAD"
-
 
 export GDK_BACKEND=wayland,x11  # Wayland preferred, X11 fallback
 export GI_TYPELIB_PATH="$HERE/usr/lib/girepository-1.0"
@@ -188,8 +177,10 @@ if [ ! -f "$HERE/usr/share/newelle/newelle.gresource" ]; then
     exit 1
 fi
 
+echo "XDG_DATA_DIRS:$XDG_DATA_DIRS"
+
 # Execute application
-exec "$HERE/usr/lib/python/bin/python3" "$HERE/usr/bin/newelle" "$@"
+exec "$HERE/usr/bin/python3" "$HERE/usr/bin/newelle" "$@"
 APPRUN_EOF
 
 chmod +x "$APPDIR/AppRun"

@@ -19,7 +19,6 @@ BRANCH="appimage"
 REPO_URL="https://github.com/borrougagnou/Newelle2Container.git"
 #### PYTHON
 PYTHON_VERSION="3.13.12"
-PYTHON_STANDALONE_TAG="20260211"
 #### BUILD
 BUILDDIR="/tmp/Newelle-build"
 APPDIR="/tmp/Newelle.AppDir"
@@ -27,7 +26,10 @@ OUTPUT="/tmp/Newelle-$APP_VERSION-x86_64.AppImage"
 
 
 # --- CLEANUP ---
-rm -rf "$BUILDDIR" "$APPDIR" "$OUTPUT" build _build /tmp/squashfs-root/
+#TODO
+#rm -rf "$BUILDDIR"
+#rm -rf "$APPDIR"
+rm -rf  "$OUTPUT" build _build /tmp/squashfs-root/
 #TODO DEBUG
 rm -rf $APPDIR-tmp
 #TODO DEBUG
@@ -45,7 +47,8 @@ mkdir -p "$BUILDDIR" "$APPDIR"
 #sudo apt-get update
 #
 ## Build essentials
-#sudo apt-get install -y --no-install-recommends build-essential meson ninja-build pkg-config git wget gettext
+#sudo apt-get install -y --no-install-recommends build-essential meson ninja-build pkg-config git wget \
+#  gettext libssl-dev
 #
 ## Python (would like to use venv but there is an incompatibility problem :c)
 #sudo apt-get install -y --no-install-recommends python3-dev python3-pip python3-venv \
@@ -83,8 +86,10 @@ echo ""
 echo "### Step 2.1/10: Building application with Meson..."
 
 cd "$BUILDDIR"
+if [ ! -d "$BUILDDIR/Newelle2Container" ]; then
 echo "--> clone from branch $BRANCH"
-git clone --depth 1 -b "$BRANCH" "$REPO_URL"
+    git clone --depth 1 -b "$BRANCH" "$REPO_URL"
+fi
 cd Newelle2Container
 
 # Build translations
@@ -110,22 +115,38 @@ meson install -C _build --destdir "$APPDIR"
 echo ""
 echo "### Step 2.2/10: Prepare Python"
 
-cd "$BUILDDIR"
-if [ ! -f "/tmp/python.tar.gz" ]; then
-    echo "--> Downloading Portable Python $PYTHON_VERSION..."
-    PYTHON_URL="https://github.com/indygreg/python-build-standalone/releases/download/$PYTHON_STANDALONE_TAG/cpython-$PYTHON_VERSION+${PYTHON_STANDALONE_TAG}-x86_64-unknown-linux-gnu-install_only.tar.gz"
-    wget -q --show-progress $PYTHON_URL -O /tmp/python.tar.gz
+if [ ! -f "/tmp/python.tgz" ]; then
+    echo "--> Downloading Python Source $PYTHON_VERSION..."
+    PYTHON_URL="https://www.python.org/ftp/python/$PYTHON_VERSION/Python-$PYTHON_VERSION.tgz"
+    wget -q --show-progress $PYTHON_URL -O /tmp/python.tgz
 fi
 
-echo "--> Extracting Python..."
-mkdir -p $APPDIR/usr/bin $APPDIR/usr/lib
-tar -xzf /tmp/python.tar.gz -C $BUILDDIR
-# Move the 'python' folder into the AppDir
-mv $BUILDDIR/python $APPDIR/usr/lib/python
-# TODO DONT CLEAN WE NEED THE FILE
-#rm /tmp/python.tar.gz
+# if python3 isn't on appdir, then we need to rebuild everything unfortunately...
+if [ ! -f "$APPDIR/usr/bin/python3" ]; then
+    rm -rf "$BUILDDIR/Python-$PYTHON_VERSION"
 
+    echo "--> Extracting Python..."
+    tar -xf /tmp/python.tgz -C $BUILDDIR
 
+    cd "$BUILDDIR/Python-$PYTHON_VERSION"
+    echo "--> Compiling Python (This will take a few minutes)..."
+    # The Magic Flag: '-Wl,-rpath=\$$ORIGIN/../lib' will makes the binary relocatable!
+    ./configure \
+        --prefix=/usr \
+        --enable-shared \
+        --enable-optimizations \
+        --with-system-ffi \
+        --with-ssl-default-suites=openssl \
+        LDFLAGS="-Wl,-rpath='\$\$ORIGIN/../lib'"
+
+    # Compile using all CPU cores
+    make -j$(nproc)
+
+    echo "--> Installing Python to AppDir..."
+    make install DESTDIR=$APPDIR
+fi
+
+echo "Done"
 
 ################################
 # STEP 3: Python Environment   #
@@ -137,21 +158,15 @@ echo "### Step 3/10: Install Python dependencies..."
 cd "$APPDIR"
 echo "Installing Python packages..."
 
-#pip install --no-cache-dir --upgrade pip setuptools wheel
-#pip install --no-cache-dir \
-#$PIP_BIN install --no-cache-dir --upgrade pip setuptools wheel --target=$APPDIR/lib/python3.13/site-packages
-#$PIP_BIN install --no-cache-dir --target=$APPDIR/lib/python3.13/site-packages \
-
-PYTHON_BIN="$APPDIR/usr/lib/python/bin/python3"
-PIP_BIN="$APPDIR/usr/lib/python/bin/python3 -m pip"
+PYTHON_BIN="$APPDIR/usr/bin/python3"
+PIP_BIN="$APPDIR/usr/bin/python3 -m pip"
 #CC=gcc
 #CMAKE_CXX_COMPILER=gcc
 
 $PIP_BIN install --no-cache-dir --upgrade pip setuptools wheel
 
-#CC="gcc" CMAKE_C_COMPILER="gcc" CMAKE_CXX_COMPILER="g++" CXX="g++" $PIP_BIN install --no-cache-dir \
-#    https://gitlab.gnome.org/GNOME/pygobject/-/archive/3.50.2/pygobject-3.50.2.tar.gz
-CC="gcc" CMAKE_C_COMPILER="gcc" CMAKE_CXX_COMPILER="g++" CXX="g++" $PIP_BIN install --no-cache-dir \
+CC="gcc" CMAKE_C_COMPILER="gcc" CMAKE_CXX_COMPILER="g++" CXX="g++" $PIP_BIN install --prefix=/usr --root=$APPDIR --no-cache-dir \
+    https://gitlab.gnome.org/GNOME/pygobject/-/archive/3.50.2/pygobject-3.50.2.tar.gz \
     cssselect \
     curl_cffi \
     duckduckgo-search \
@@ -213,7 +228,7 @@ mkdir -p $APPDIR/usr/share/icons/hicolor/scalable/apps
 cp "$APPDIR/usr/share/icons/hicolor/scalable/apps/io.github.qwersyk.Newelle.svg" "$APPDIR/"
 cp "$APPDIR/usr/share/applications/io.github.qwersyk.Newelle.desktop" "$APPDIR/"
 
-
+exit
 
 #############################
 # STEP 6: Bundle GNOME     #
@@ -239,14 +254,14 @@ for lib in libgraphene libpangocairo libpango libcairo libgdk_pixbuf libgio libg
 done
 
 # Copy GObject Introspection typelibs (critical for PyGObject)
-echo "  - GObject Introspection typelibs..."
-for typelib in Gtk-4.0 Adw-1 GtkSource-5 Vte-3.91 WebKit-6.0 GLib-2.0 GObject-2.0 Gio-2.0; do
-    find /usr/lib/x86_64-linux-gnu/girepository-1.0 -name "${typelib}.typelib" \
-        -exec cp {} "$APPDIR/usr/lib/girepository-1.0/" \; 2>/dev/null || true
-done
-find /usr/lib -name "libffi.so*"              -type f -exec cp {} $APPDIR/usr/lib/ \;
-find /usr/lib -name "libgirepository-1.0.so*" -type f -exec cp {} $APPDIR/usr/lib/ \;
-find /usr/lib -name "libgirepository-2.0.so*" -type f -exec cp {} $APPDIR/usr/lib/ \;
+#echo "  - GObject Introspection typelibs..."
+#for typelib in Gtk-4.0 Adw-1 GtkSource-5 Vte-3.91 WebKit-6.0 GLib-2.0 GObject-2.0 Gio-2.0; do
+#    find /usr/lib/x86_64-linux-gnu/girepository-1.0 -name "${typelib}.typelib" \
+#        -exec cp {} "$APPDIR/usr/lib/girepository-1.0/" \; 2>/dev/null || true
+#done
+#find /usr/lib -name "libffi.so*"              -type f -exec cp {} $APPDIR/usr/lib/ \;
+#find /usr/lib -name "libgirepository-1.0.so*" -type f -exec cp {} $APPDIR/usr/lib/ \;
+#find /usr/lib -name "libgirepository-2.0.so*" -type f -exec cp {} $APPDIR/usr/lib/ \;
 
 
 # Copy and Compile GSettings schemas
