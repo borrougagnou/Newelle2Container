@@ -4,7 +4,7 @@
 APP_NAME="Newelle"
 APP_VERSION="1.2.5"
 PYTHON_VERSION="3.13.10"
-STANDALONE_TAG="20251202"
+PYTHON_STANDALONE_TAG="20251202"
 
 # Your main python script (change this if yours is named differently)
 MAIN_SCRIPT="main.py"
@@ -22,7 +22,7 @@ mkdir -p AppDir/usr/lib
 # 2. DOWNLOAD PORTABLE PYTHON
 # We use 'python-build-standalone' which is pre-patched to work anywhere
 echo "--> Downloading Portable Python $PYTHON_VERSION..."
-PYTHON_URL="https://github.com/indygreg/python-build-standalone/releases/download/$STANDALONE_TAG/cpython-$PYTHON_VERSION+${STANDALONE_TAG}-x86_64-unknown-linux-gnu-install_only.tar.gz"
+PYTHON_URL="https://github.com/indygreg/python-build-standalone/releases/download/$PYTHON_STANDALONE_TAG/cpython-$PYTHON_VERSION+${PYTHON_STANDALONE_TAG}-x86_64-unknown-linux-gnu-install_only.tar.gz"
 wget -q --show-progress $PYTHON_URL -O python.tar.gz
 
 echo "--> Extracting Python..."
